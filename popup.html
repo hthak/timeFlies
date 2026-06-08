@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus Lens</title>
+  <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <div class="logo-dot"></div>
+      </div>
+      <span class="logo-name">Focus Lens</span>
+    </div>
+    <div class="header-right">
+      <span class="date-label" id="dateLabel"></span>
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Open settings">
+        <i class="ti ti-settings"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Time range tabs -->
+  <div class="tabs">
+    <button class="tab active" data-range="day">Today</button>
+    <button class="tab" data-range="week">This Week</button>
+  </div>
+
+  <!-- Main content -->
+  <main id="mainContent">
+
+    <!-- Chart + stats row -->
+    <div class="score-row">
+      <div class="chart-wrap">
+        <svg id="donutSvg" viewBox="0 0 110 110" width="110" height="110" aria-hidden="true">
+          <circle class="donut-bg" cx="55" cy="55" r="42" />
+          <!-- Segments injected by JS -->
+          <g id="donutSegments"></g>
+        </svg>
+        <div class="chart-center">
+          <span class="score-num" id="focusScore">—</span>
+          <span class="score-label">focus</span>
+        </div>
+      </div>
+
+      <div class="stats-col">
+        <div class="stat">
+          <div class="stat-label">Time tracked</div>
+          <div class="stat-val" id="totalTime">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Top site</div>
+          <div class="stat-val small" id="topSite">—</div>
+          <div class="stat-sub" id="topSiteTime"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goal banner (shown when a goal is set) -->
+    <div class="goal-banner hidden" id="goalBanner">
+      <div class="goal-icon"><i class="ti ti-flag"></i></div>
+      <div class="goal-text" id="goalText"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Category breakdown -->
+    <div class="section-title">Breakdown</div>
+    <div class="cats" id="catList"></div>
+
+    <!-- Top sites -->
+    <div class="divider"></div>
+    <div class="section-title">Top Sites</div>
+    <div class="sites" id="siteList"></div>
+
+  </main>
+
+  <!-- Settings panel (hidden by default) -->
+  <div class="settings-panel hidden" id="settingsPanel">
+    <div class="settings-header">
+      <span class="settings-title">Settings</span>
+      <button class="icon-btn" id="closeSettingsBtn" aria-label="Close settings">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-label">Daily Goals (minutes)</div>
+      <div class="goal-inputs" id="goalInputs">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-label">Data</div>
+      <button class="danger-btn" id="clearDataBtn">
+        <i class="ti ti-trash"></i> Clear all data
+      </button>
+    </div>
+
+    <button class="save-btn" id="saveGoalsBtn">Save goals</button>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state hidden" id="emptyState">
+    <i class="ti ti-eye-off empty-icon"></i>
+    <p class="empty-title">No data yet</p>
+    <p class="empty-sub">Browse the web and come back — your time will appear here.</p>
+  </div>
+
+  <script src="categorizer.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
