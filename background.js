@@ -1,0 +1,170 @@
+//background.js — timeFlies service worker
+//to track active tab time and write to chrome.storage.local
+
+importScripts("categorizer.js");
+
+//current state tracking vars
+let activeTabId = null;
+let activeUrl = null;
+let sessionStart = null; //timestamp (ms) when current session started
+let isIdle = false; //if user hasn't touched computer for more than 60 sec
+
+//helpers
+function todayKey() { //return todays date -> ex) "day_2026_6_6"
+  const d = new Date(); //date object
+  return `day_${d.getFullYear()}_${d.getMonth() + 1}_${d.getDate()}`; //since months are 0 indexed
+}
+
+function weekKey() { //returns todays year -> "week_2026_23"
+  const d = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `week_${d.getFullYear()}_${week}`;
+}
+
+/*
+ Log elapsed seconds from sessionStart to now
+ Writes under both the day key and week key
+*/
+async function commitTime() {
+  if (!activeUrl || !sessionStart || isIdle) return; //make sure valid data
+
+  const elapsed = Math.floor((Date.now() - sessionStart) / 1000); //elapsed time
+  if (elapsed < 1) return;
+
+  const domain = getDomain(activeUrl); //gets the website domain
+  const category = categorize(activeUrl); //categorize function
+  const dKey = todayKey(); //make storage key for this day
+  const wKey = weekKey(); //same thing for this week
+
+  const result = await chrome.storage.local.get([dKey, wKey]); //get the stored data for this day and this week
+  const dayData = result[dKey] || { domains: {}, categories: {}, total: 0 }; //either loaded data or empty
+  const weekData = result[wKey] || { domains: {}, categories: {}, total: 0 };
+
+  //update for day
+  dayData.domains[domain] = (dayData.domains[domain] || 0) + elapsed; //whatever is there + elapsed
+  dayData.categories[category] = (dayData.categories[category] || 0) + elapsed;
+  dayData.total += elapsed;
+
+  //update for week
+  weekData.domains[domain] = (weekData.domains[domain] || 0) + elapsed;
+  weekData.categories[category] = (weekData.categories[category] || 0) + elapsed;
+  weekData.total += elapsed;
+
+  await chrome.storage.local.set({ [dKey]: dayData, [wKey]: weekData }); //update in local storage
+
+  //updates badge
+  updateBadge(dayData);
+
+  //reset session start to now to avoud double commit
+  sessionStart = Date.now();
+}
+
+/** Show total productive minutes on badge, red if over a limit */
+async function updateBadge(dayData) {
+  const prodSecs = dayData.categories["productivity"] || 0;
+  const mins = Math.floor(prodSecs / 60);
+  const text = mins >= 60 ? `${Math.floor(mins / 60)}h` : mins > 0 ? `${mins}m` : "";
+
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color: "#7c5cfc" });
+
+  // Check goals
+  const goals = (await chrome.storage.local.get("goals")).goals || {};
+  for (const [cat, limitSecs] of Object.entries(goals)) {
+    const spent = dayData.categories[cat] || 0;
+    if (spent >= limitSecs) {
+      chrome.action.setBadgeBackgroundColor({ color: "#e86b6b" });
+      break;
+    } else if (spent >= limitSecs * 0.8) {
+      chrome.action.setBadgeBackgroundColor({ color: "#f5a623" });
+    }
+  }
+}
+
+//when a new tab is loaded
+async function handleNewTab(tabId, url) {
+  //commit time for the previous tab
+  await commitTime();
+
+  //skip extension pages
+  if (!url || url.startsWith("chrome") || url.startsWith("about") || url.startsWith("edge")) {
+    activeTabId = null;
+    activeUrl = null;
+    sessionStart = null;
+    return;
+  }
+
+  activeTabId = tabId; //update info for what tab is active
+  activeUrl = url;
+  sessionStart = Date.now();
+}
+
+//tab switched
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await handleNewTab(tabId, tab.url);
+  } catch { /* tab may not exist yet */ }
+});
+
+//URL changed in existing tab (user may go from google to youtube)
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tabId === activeTabId) {
+    await handleNewTab(tabId, tab.url);
+  }
+});
+
+//window focus changed
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    //browser lost focus so commit and pause
+    await commitTime(); //wait for this to finish
+    sessionStart = null;
+    return;
+  }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, windowId });
+    if (tab) await handleNewTab(tab.id, tab.url);
+  } catch { /* ignore */ }
+});
+
+//idle detection
+
+chrome.idle.setDetectionInterval(60); // 60 seconds idle threshold
+
+chrome.idle.onStateChanged.addListener(async (state) => { //runs whrn idle state changes
+  if (state === "idle" || state === "locked") {
+    await commitTime();
+    isIdle = true;
+    sessionStart = null;
+  } else if (state === "active") {
+    isIdle = false;
+    if (activeUrl) sessionStart = Date.now();
+  }
+});
+
+//heartbeat alarm
+//commits time every 30 seconds to prevent data loss if service worker sleeps
+chrome.alarms.create("heartbeat", { periodInMinutes: 0.5 });
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "heartbeat") {
+    await commitTime();
+  }
+});
+
+//on chrome startup
+chrome.runtime.onStartup.addListener(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) await handleNewTab(tab.id, tab.url);
+  } catch { /* ignore */ }
+});
+
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) await handleNewTab(tab.id, tab.url);
+  } catch { /* ignore */ }
+});
