@@ -1,0 +1,95 @@
+/* ─── Reset & base ───────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #1a1a1f;
+  --bg2:      #23232d;
+  --bg3:      #2a2a36;
+  --border:   #2e2e38;
+  --text:     #e8e8f0;
+  --muted:    #9090a8;
+  --faint:    #555568;
+  --radius:   10px;
+  --radius-sm:6px;
+
+  --c-prod:   #7c5cfc;
+  --c-social: #e86b6b;
+  --c-ent:    #4fa3e8;
+  --c-shop:   #f5a623;
+  --c-news:   #5cb8a0;
+  --c-search: #a084f8;
+  --c-ref:    #74b8f0;
+  --c-other:  #555568;
+}
+
+html, body {
+  width: 320px;
+  min-height: 200px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Sora", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo { display: flex; align-items: center; gap: 8px; }
+
+.logo-icon {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--c-prod), var(--c-ent));
+  display: flex; align-items: center; justify-content: center;
+}
+
+.logo-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.logo-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-label {
+  font-size: 10px;
+  color: var(--faint);
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { color: var(--text); background: var(--bg2); }
+.icon-btn i { font-size: 16px; }
+
