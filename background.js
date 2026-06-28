@@ -9,6 +9,42 @@ let activeUrl = null;
 let sessionStart = null; //timestamp (ms) when current session started
 let isIdle = false; //if user hasn't touched computer for more than 60 sec
 
+async function saveSession() {
+  try {
+    await chrome.storage.session.set({
+      activeUrl, sessionStart, isIdle
+    });
+  } catch {
+    // Fallback to local if session storage unavailable (older Chrome)
+    await chrome.storage.local.set({
+      _session: { activeUrl, sessionStart, isIdle }
+    });
+  }
+}
+
+async function loadSession() {
+  try {
+    const s = await chrome.storage.session.get(["activeUrl", "sessionStart", "isIdle"]);
+    if (s.activeUrl && s.sessionStart) {
+      activeUrl    = s.activeUrl;
+      sessionStart = s.sessionStart;
+      isIdle       = s.isIdle || false;
+      return true;
+    }
+  } catch {
+    // Fallback: try local storage session key
+    const result = await chrome.storage.local.get("_session");
+    const s = result._session;
+    if (s && s.activeUrl && s.sessionStart) {
+      activeUrl    = s.activeUrl;
+      sessionStart = s.sessionStart;
+      isIdle       = s.isIdle || false;
+      return true;
+    }
+  }
+  return false;
+}
+
 //helpers
 function todayKey() { //return todays date -> ex) "day_2026_6_6"
   const d = new Date(); //date object
@@ -59,6 +95,8 @@ async function commitTime() {
 
   //reset session start to now to avoud double commit
   sessionStart = Date.now();
+
+  await saveSession();
 }
 
 /** Show total productive minutes on badge, red if over a limit */
@@ -93,12 +131,14 @@ async function handleNewTab(tabId, url) {
     activeTabId = null;
     activeUrl = null;
     sessionStart = null;
+    await saveSession();
     return;
   }
 
   activeTabId = tabId; //update info for what tab is active
   activeUrl = url;
   sessionStart = Date.now();
+  await saveSession();
 }
 
 //tab switched
@@ -122,6 +162,7 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     //browser lost focus so commit and pause
     await commitTime(); //wait for this to finish
     sessionStart = null;
+    await saveSession();
     return;
   }
   try {
@@ -134,14 +175,18 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
 
 chrome.idle.setDetectionInterval(60); // 60 seconds idle threshold
 
-chrome.idle.onStateChanged.addListener(async (state) => { //runs whrn idle state changes
+chrome.idle.onStateChanged.addListener(async (state) => {
   if (state === "idle" || state === "locked") {
     await commitTime();
-    isIdle = true;
+    isIdle       = true;
     sessionStart = null;
+    await saveSession();
   } else if (state === "active") {
     isIdle = false;
-    if (activeUrl) sessionStart = Date.now();
+    if (activeUrl) {
+      sessionStart = Date.now();
+      await saveSession();
+    }
   }
 });
 
@@ -150,9 +195,13 @@ chrome.idle.onStateChanged.addListener(async (state) => { //runs whrn idle state
 chrome.alarms.create("heartbeat", { periodInMinutes: 0.5 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === "heartbeat") {
-    await commitTime();
+  if (alarm.name !== "heartbeat") return;
+
+  // If in-memory state is gone (worker was killed), restore it first
+  if (!sessionStart) {
+    await loadSession();
   }
+  await commitTime();
 });
 
 //on chrome startup
@@ -169,3 +218,24 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (tab) await handleNewTab(tab.id, tab.url);
   } catch { /* ignore */ }
 });
+
+//startup
+async function init() {
+  // Recover any session that was interrupted when Chrome last closed
+  const recovered = await loadSession();
+
+  if (recovered && sessionStart) {
+    // Commit the recovered time (sessionStart → now).
+    // This handles the gap between last heartbeat and Chrome closing.
+    await commitTime();
+  }
+
+  // Now start tracking the currently active tab
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) await handleNewTab(tab.url);
+  } catch { /* ignore */ }
+}
+
+chrome.runtime.onStartup.addListener(init);
+chrome.runtime.onInstalled.addListener(init);
