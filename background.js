@@ -17,9 +17,10 @@ function todayKey() { //return todays date -> ex) "day_2026_6_6"
 
 function weekKey() { //returns todays year -> "week_2026_23"
   const d = new Date();
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-  return `week_${d.getFullYear()}_${week}`;
+  const day = d.getDay(); //0 would be sunday
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day == 0 ? 6 : day - 1));
+  return `week_${monday.getFullYear()}_${monday.getMonth() + 1}_${monday.getDate()}`;
 }
 
 /*
